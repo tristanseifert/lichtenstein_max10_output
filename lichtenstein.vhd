@@ -59,7 +59,7 @@ component sram_controller
 		-- read interface
 		rd_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
 		rd_data:		OUT STD_LOGIC_VECTOR(7 downto 0);
-		rd_req:		IN STD_LOGIC_VECTOR := '0'
+		rd_req:		IN STD_LOGIC := '0'
 	);
 end component;
 
@@ -215,10 +215,10 @@ BEGIN
 	IF rising_edge(clk_24) THEN
 		-- is the reset strobe asserted?
 		IF ledout_rst = '0' THEN
-			-- if so, assert resets
+			-- if so, assert reset
 			gReset <= '0';
 		ELSE
-			-- de-assert resets
+			-- de-assert reset
 			gReset <= '1';
 		END IF;
 	END IF;

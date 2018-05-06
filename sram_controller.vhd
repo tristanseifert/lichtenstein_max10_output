@@ -26,7 +26,7 @@ ENTITY sram_controller IS
 		-- read interface
 		rd_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
 		rd_data:		OUT STD_LOGIC_VECTOR(7 downto 0);
-		rd_req:		IN STD_LOGIC_VECTOR := '0'
+		rd_req:		IN STD_LOGIC := '0'
 	);
 END sram_controller;
 
@@ -101,8 +101,12 @@ BEGIN
 				cs <= '1';
 				we <= '1';
 				
+				-- is there a read request?
+				IF rd_req = '1' THEN
+					-- if so, go into the read state
+					state <= MEM_READ_ADDR;
 				-- is there a write request?
-				IF fifo_empty = '0' THEN
+				ELSIF fifo_empty = '0' THEN
 					-- if so, assert the read request on the FIFO and change state
 					fifo_readrq <= '1';
 					
@@ -137,12 +141,17 @@ BEGIN
 				we <= '1';
 				oe <= '0';
 				
+				-- send address
+				address <= rd_addr;
+				data <= (OTHERS => 'Z');
+				
 				-- go to the read state
 				state <= MEM_READ_DATA;
 			
 			-- Second read state: reads data from bus
 			WHEN MEM_READ_DATA =>
 				-- read data
+				rd_data <= data;
 				
 				-- go to idle state
 				state <= IDLE;
