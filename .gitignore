@@ -1,5 +1,6 @@
 *.bak
 
+greybox_tmp/
 output_files/
 db/
 incremental_db/

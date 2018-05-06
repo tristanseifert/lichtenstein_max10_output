@@ -54,7 +54,12 @@ component sram_controller
 		wr_req:		IN STD_LOGIC := '1';
 		wr_data:		IN STD_LOGIC_VECTOR(7 downto 0);
 		wr_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
-		wr_full:		OUT STD_LOGIC
+		wr_full:		OUT STD_LOGIC;
+		
+		-- read interface
+		rd_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
+		rd_data:		OUT STD_LOGIC_VECTOR(7 downto 0);
+		rd_req:		IN STD_LOGIC_VECTOR := '0'
 	);
 end component;
 
@@ -141,6 +146,11 @@ signal sram_wrdata					: STD_LOGIC_VECTOR(7 downto 0);
 signal sram_wraddr					: STD_LOGIC_VECTOR(17 downto 0);
 signal sram_wrreq, sram_wrfull	: STD_LOGIC;
 
+-- SRAM read bus
+SIGNAL sram_rdaddr					: STD_LOGIC_VECTOR(17 downto 0);
+SIGNAL sram_rddata					: STD_LOGIC_VECTOR(7 downto 0);
+SIGNAL sram_rdreq						: STD_LOGIC := '0';
+
 -- SPI interface
 signal spi_reset						: STD_LOGIC := '0';
 
@@ -171,7 +181,8 @@ sram: sram_controller PORT MAP(nreset => sram_nreset, clk => clk_48,
 	address => sram_addr, data => sram_data, cs => sram_ce, 
 	oe => sram_oe, we => sram_we, wr_clk => clk_24, 
 	wr_req => sram_wrreq, wr_data => sram_wrdata, 
-	wr_addr => sram_wraddr, wr_full => sram_wrfull
+	wr_addr => sram_wraddr, wr_full => sram_wrfull,
+	rd_addr => sram_rdaddr, rd_data => sram_rddata, rd_req => sram_rdreq
 );
 
 -- SPI slave
