@@ -82,10 +82,12 @@ end component;
 component command_processor
 	PORT
 	(
+		---------------------------------------
 		-- clock and reset
 		nreset:		IN STD_LOGIC;
 		clk:			IN STD_LOGIC;
 		
+		---------------------------------------
 		-- SPI interface
 		spi_tx:		OUT STD_LOGIC_VECTOR(7 downto 0);
 		spi_tx_valid:	OUT STD_LOGIC := '0';
@@ -94,11 +96,20 @@ component command_processor
 		spi_rx:		IN STD_LOGIC_VECTOR(7 downto 0);
 		spi_rx_valid:	IN STD_LOGIC;
 		
+		---------------------------------------
 		-- SRAM write interface
 		sram_wr_data:	OUT STD_LOGIC_VECTOR(7 downto 0);
 		sram_wr_addr:	OUT STD_LOGIC_VECTOR(17 downto 0);
 		sram_wr_req:	OUT STD_LOGIC;
-		sram_wr_full:	IN STD_LOGIC
+		sram_wr_full:	IN STD_LOGIC;
+		
+		---------------------------------------
+		-- output registers
+		out_addr:		OUT STD_LOGIC_VECTOR(17 downto 0);
+		out_bytes:		OUT STD_LOGIC_VECTOR(15 downto 0);
+		
+		-- latch the addr/byte into one of the 16 output units
+		out_latch:		OUT STD_LOGIC_VECTOR(15 downto 0)
 	);
 end component;
 
@@ -143,6 +154,11 @@ signal spi_rx_valid					: STD_LOGIC;
 -- command processor
 signal cmd_nreset						: STD_LOGIC := '1';
 
+-- output register bus
+SIGNAL out_reg_addr					: STD_LOGIC_VECTOR(17 downto 0);
+SIGNAL out_reg_bytes					: STD_LOGIC_VECTOR(15 downto 0);
+SIGNAL out_reg_latch					: STD_LOGIC_VECTOR(15 downto 0);
+
 BEGIN
 
 -- instantiate main PLL
@@ -167,11 +183,16 @@ spi: SPI_SLAVE PORT MAP(CLK => clk_48, RST => spi_reset, SCLK => spi_sck,
 
 -- command processor
 cmd: command_processor PORT MAP(nreset => cmd_nreset, clk => clk_48, 
+	
 	spi_tx => spi_tx, spi_tx_valid => spi_tx_valid, spi_rx => spi_rx,
 	spi_tx_ready => spi_tx_ready,
 	spi_rx_valid => spi_rx_valid, sram_wr_data => sram_wrdata, 
+	
 	sram_wr_addr => sram_wraddr, sram_wr_req => sram_wrreq,
-	sram_wr_full => sram_wrfull
+	sram_wr_full => sram_wrfull,
+	
+	out_addr => out_reg_addr, out_bytes => out_reg_bytes, 
+	out_latch => out_reg_latch
 );
 
 
