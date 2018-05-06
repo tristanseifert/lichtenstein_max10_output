@@ -48,7 +48,6 @@ set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name DEVICE_FILTER_PACKAGE EQFP
 set_global_assignment -name DEVICE_FILTER_SPEED_GRADE 8
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 256
-set_global_assignment -name VHDL_FILE lichtenstein.vhd
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
@@ -172,4 +171,23 @@ set_location_assignment PIN_102 -to pwm_out[12]
 set_location_assignment PIN_105 -to pwm_out[13]
 set_location_assignment PIN_106 -to pwm_out[14]
 set_location_assignment PIN_110 -to pwm_out[15]
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER status[0] -section_id status_led
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER status[2] -section_id status_led
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER status[1] -section_id status_led
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER sram_oe -section_id sram_ctrl
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER sram_we -section_id sram_ctrl
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER sram_ce -section_id sram_ctrl
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER ledout_rst -section_id ctrl_strobes
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER ledout_en -section_id ctrl_strobes
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER spi_sck -section_id ctrl_spi
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER spi_cs -section_id ctrl_spi
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER spi_miso -section_id ctrl_spi
+set_global_assignment -name ASSIGNMENT_GROUP_MEMBER spi_mosi -section_id ctrl_spi
+set_global_assignment -name VHDL_FILE lichtenstein.vhd
+set_global_assignment -name QIP_FILE output_fifo.qip
+set_global_assignment -name QIP_FILE mainpll.qip
+set_global_assignment -name VHDL_FILE sram_controller.vhd
+set_global_assignment -name QIP_FILE sram_write_fifo.qip
+set_global_assignment -name VHDL_FILE spi_slave.vhd
+set_global_assignment -name VHDL_FILE command_processor.vhd
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
