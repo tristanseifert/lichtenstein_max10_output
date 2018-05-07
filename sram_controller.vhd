@@ -26,7 +26,8 @@ ENTITY sram_controller IS
 		-- read interface
 		rd_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
 		rd_data:		OUT STD_LOGIC_VECTOR(7 downto 0);
-		rd_req:		IN STD_LOGIC := '0'
+		rd_req:		IN STD_LOGIC := '0';
+		rd_valid:	OUT STD_LOGIC := '0'
 	);
 END sram_controller;
 
@@ -97,6 +98,9 @@ BEGIN
 		CASE state IS
 			-- Idle state; check for write or read requests
 			WHEN IDLE =>
+				-- de-assert fifo clear
+				fifo_clear <= '0';
+			
 				-- de-assert the chip
 				cs <= '1';
 				we <= '1';
@@ -117,6 +121,9 @@ BEGIN
 			
 			-- Write state; puts address and data on output
 			WHEN MEM_WRITE =>
+				-- data on the read bus is no longer valid
+				rd_valid <= '0';
+				
 				-- select the chip, enable write, disable output
 				cs <= '0';
 				we <= '0';
@@ -152,6 +159,7 @@ BEGIN
 			WHEN MEM_READ_DATA =>
 				-- read data
 				rd_data <= data;
+				rd_valid <= '1';
 				
 				-- go to idle state
 				state <= IDLE;

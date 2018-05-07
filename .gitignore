@@ -1,5 +1,7 @@
 *.bak
 
+lichtenstein.ipregen.rpt
+
 greybox_tmp/
 output_files/
 db/
