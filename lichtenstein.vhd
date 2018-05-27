@@ -1,33 +1,37 @@
 LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
+USE ieee.std_logic_unsigned.ALL;
+USE ieee.numeric_std.ALL; 
 
 ENTITY lichtenstein IS
       PORT(
 			-- 24MHz main clock
-			clkin:		  IN std_logic;
+			clkin:		  IN STD_LOGIC;
 		
 			-- SRAM bus
-			sram_data: INOUT std_logic_vector(7 downto 0);
-			sram_addr:   OUT std_logic_vector(17 downto 0);
-			sram_oe:		 OUT std_logic;
-			sram_ce:		 OUT std_logic;
-			sram_we:		 OUT std_logic;
+			sram_data: INOUT STD_LOGIC_VECTOR(7 downto 0);
+			sram_addr:   OUT STD_LOGIC_VECTOR(17 downto 0);
+			sram_oe:		 OUT STD_LOGIC;
+			sram_ce:		 OUT STD_LOGIC;
+			sram_we:		 OUT STD_LOGIC;
 			
 			-- SPI bus
-			spi_cs:		  IN std_logic;
-			spi_mosi:	  IN std_logic;
-			spi_miso:	 OUT std_logic;
-			spi_sck:		  IN std_logic;
+			spi_cs:		  IN STD_LOGIC;
+			spi_mosi:	  IN STD_LOGIC;
+			spi_miso:	 OUT STD_LOGIC;
+			spi_sck:		  IN STD_LOGIC;
 			
 			-- strobes from host
-			ledout_en:	  IN std_logic;
-			ledout_rst:	  IN std_logic;
+			ledout_en:	  IN STD_LOGIC;
+			ledout_rst:	  IN STD_LOGIC;
 			
 			-- status outputs
-			status:		 OUT std_logic_vector(2 downto 0) := (OTHERS => '0');
+			status:		 OUT STD_LOGIC_VECTOR(3 downto 0) := (OTHERS => '0');
 			
 			-- PWM output
-			pwm_out:		 OUT std_logic_vector(15 downto 0)
+			pwm_out:		 OUT STD_LOGIC_VECTOR(15 downto 0);
+			-- output enables for each bank of 8
+			pwm_out_enable:	OUT STD_LOGIC_VECTOR(1 downto 0) := (OTHERS => '1')
 		);
 END lichtenstein;
 
@@ -227,6 +231,9 @@ SIGNAL out_rd_desired				: STD_LOGIC_VECTOR(15 downto 0);
 -- output read arbiter
 SIGNAL out_arbiter_nreset			: STD_LOGIC := '1';
 
+-- timer for blinking heartbeat LED
+SIGNAL heartbeat_timer				: STD_LOGIC_VECTOR(20 downto 0) := (OTHERS => '0');
+
 BEGIN
 
 -- instantiate main PLL
@@ -275,7 +282,7 @@ arbiter: read_arbiter PORT MAP(
 -- instantiate output channels
 
 GEN_OUT:
-FOR I IN 0 to 15 GENERATE
+FOR I IN 0 to 7 GENERATE
 	OUTX: output PORT MAP(
 		nreset => out_nreset, clk => clk_48, pwmclk => pwmclk,
 		
@@ -330,6 +337,16 @@ BEGIN
 
 			spi_reset <= '0';
 		END IF;
+	END IF;
+END PROCESS;
+
+-- status LED 0 is a heartbeat
+PROCESS (pwmclk) IS
+BEGIN
+	IF rising_edge(pwmclk) THEN
+		heartbeat_timer <= heartbeat_timer + 1;
+		
+		status(0) <= heartbeat_timer(20);
 	END IF;
 END PROCESS;
 

@@ -292,6 +292,12 @@ BEGIN
 			
 					-- wait for data again
 					state <= WRSRAM_DATA_WAIT;
+				ELSE
+					-- make sure the write request signal is not asserted
+					sram_wr_req <= '0';
+				
+					-- the write FIFO is full... wait
+					state <= WRSRAM_DATA;
 				END IF;
 			-- waits for new data to arrive
 			WHEN WRSRAM_DATA_WAIT =>

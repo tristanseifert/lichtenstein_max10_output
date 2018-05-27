@@ -100,11 +100,11 @@ BEGIN
 	dcfifo_component : dcfifo
 	GENERIC MAP (
 		intended_device_family => "MAX 10",
-		lpm_numwords => 32,
+		lpm_numwords => 256,
 		lpm_showahead => "OFF",
 		lpm_type => "dcfifo",
 		lpm_width => 26,
-		lpm_widthu => 5,
+		lpm_widthu => 8,
 		overflow_checking => "ON",
 		rdsync_delaypipe => 4,
 		read_aclr_synch => "ON",
@@ -138,7 +138,7 @@ END SYN;
 -- Retrieval info: PRIVATE: AlmostFullThr NUMERIC "-1"
 -- Retrieval info: PRIVATE: CLOCKS_ARE_SYNCHRONIZED NUMERIC "0"
 -- Retrieval info: PRIVATE: Clock NUMERIC "4"
--- Retrieval info: PRIVATE: Depth NUMERIC "32"
+-- Retrieval info: PRIVATE: Depth NUMERIC "256"
 -- Retrieval info: PRIVATE: Empty NUMERIC "1"
 -- Retrieval info: PRIVATE: Full NUMERIC "1"
 -- Retrieval info: PRIVATE: INTENDED_DEVICE_FAMILY STRING "MAX 10"
@@ -146,7 +146,7 @@ END SYN;
 -- Retrieval info: PRIVATE: LegacyRREQ NUMERIC "1"
 -- Retrieval info: PRIVATE: MAX_DEPTH_BY_9 NUMERIC "0"
 -- Retrieval info: PRIVATE: OVERFLOW_CHECKING NUMERIC "0"
--- Retrieval info: PRIVATE: Optimize NUMERIC "0"
+-- Retrieval info: PRIVATE: Optimize NUMERIC "2"
 -- Retrieval info: PRIVATE: RAM_BLOCK_TYPE NUMERIC "0"
 -- Retrieval info: PRIVATE: SYNTH_WRAPPER_GEN_POSTFIX STRING "0"
 -- Retrieval info: PRIVATE: UNDERFLOW_CHECKING NUMERIC "0"
@@ -166,11 +166,11 @@ END SYN;
 -- Retrieval info: PRIVATE: wsUsedW NUMERIC "0"
 -- Retrieval info: LIBRARY: altera_mf altera_mf.altera_mf_components.all
 -- Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "MAX 10"
--- Retrieval info: CONSTANT: LPM_NUMWORDS NUMERIC "32"
+-- Retrieval info: CONSTANT: LPM_NUMWORDS NUMERIC "256"
 -- Retrieval info: CONSTANT: LPM_SHOWAHEAD STRING "OFF"
 -- Retrieval info: CONSTANT: LPM_TYPE STRING "dcfifo"
 -- Retrieval info: CONSTANT: LPM_WIDTH NUMERIC "26"
--- Retrieval info: CONSTANT: LPM_WIDTHU NUMERIC "5"
+-- Retrieval info: CONSTANT: LPM_WIDTHU NUMERIC "8"
 -- Retrieval info: CONSTANT: OVERFLOW_CHECKING STRING "ON"
 -- Retrieval info: CONSTANT: RDSYNC_DELAYPIPE NUMERIC "4"
 -- Retrieval info: CONSTANT: READ_ACLR_SYNCH STRING "ON"
