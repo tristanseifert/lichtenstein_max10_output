@@ -48,7 +48,7 @@ set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name DEVICE_FILTER_PACKAGE EQFP
 set_global_assignment -name DEVICE_FILTER_SPEED_GRADE 8
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 256
-set_global_assignment -name PARTITION_NETLIST_TYPE POST_FIT -section_id Top
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_location_assignment PIN_29 -to clkin
@@ -155,22 +155,22 @@ set_location_assignment PIN_76 -to sram_addr[14]
 set_location_assignment PIN_75 -to sram_addr[15]
 set_location_assignment PIN_74 -to sram_addr[16]
 set_location_assignment PIN_77 -to sram_addr[17]
-set_location_assignment PIN_86 -to pwm_out[0]
-set_location_assignment PIN_87 -to pwm_out[1]
-set_location_assignment PIN_88 -to pwm_out[2]
-set_location_assignment PIN_89 -to pwm_out[3]
-set_location_assignment PIN_90 -to pwm_out[4]
-set_location_assignment PIN_91 -to pwm_out[5]
-set_location_assignment PIN_92 -to pwm_out[6]
-set_location_assignment PIN_93 -to pwm_out[7]
-set_location_assignment PIN_97 -to pwm_out[8]
-set_location_assignment PIN_98 -to pwm_out[9]
-set_location_assignment PIN_99 -to pwm_out[10]
-set_location_assignment PIN_100 -to pwm_out[11]
-set_location_assignment PIN_101 -to pwm_out[12]
-set_location_assignment PIN_102 -to pwm_out[13]
-set_location_assignment PIN_105 -to pwm_out[14]
-set_location_assignment PIN_106 -to pwm_out[15]
+set_location_assignment PIN_93 -to pwm_out[0]
+set_location_assignment PIN_92 -to pwm_out[1]
+set_location_assignment PIN_91 -to pwm_out[2]
+set_location_assignment PIN_90 -to pwm_out[3]
+set_location_assignment PIN_89 -to pwm_out[4]
+set_location_assignment PIN_88 -to pwm_out[5]
+set_location_assignment PIN_87 -to pwm_out[6]
+set_location_assignment PIN_86 -to pwm_out[7]
+set_location_assignment PIN_106 -to pwm_out[8]
+set_location_assignment PIN_105 -to pwm_out[9]
+set_location_assignment PIN_102 -to pwm_out[10]
+set_location_assignment PIN_101 -to pwm_out[11]
+set_location_assignment PIN_100 -to pwm_out[12]
+set_location_assignment PIN_99 -to pwm_out[13]
+set_location_assignment PIN_98 -to pwm_out[14]
+set_location_assignment PIN_97 -to pwm_out[15]
 set_global_assignment -name ASSIGNMENT_GROUP_MEMBER status[0] -section_id status_led
 set_global_assignment -name ASSIGNMENT_GROUP_MEMBER status[2] -section_id status_led
 set_global_assignment -name ASSIGNMENT_GROUP_MEMBER status[1] -section_id status_led
@@ -197,12 +197,31 @@ set_global_assignment -name VHDL_FILE output.vhd
 set_global_assignment -name VHDL_FILE read_arbiter.vhdl
 set_global_assignment -name VECTOR_WAVEFORM_FILE spi_test.vwf
 set_global_assignment -name PROJECT_IP_REGENERATION_POLICY ALWAYS_REGENERATE_IP
-set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "NO HEAT SINK WITH STILL AIR"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_global_assignment -name FLOW_ENABLE_POWER_ANALYZER ON
 set_global_assignment -name POWER_DEFAULT_INPUT_IO_TOGGLE_RATE "12.5 %"
 set_global_assignment -name ENABLE_SIGNALTAP ON
 set_global_assignment -name USE_SIGNALTAP_FILE signaltap/cmd_rx_test.stp
 set_global_assignment -name SIGNALTAP_FILE signaltap/cmd_rx_test.stp
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[0]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[15]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[14]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[13]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[12]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[11]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[10]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[9]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[8]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[7]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[6]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[5]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[4]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[3]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[2]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to pwm_out[1]
+set_global_assignment -name VCCA_USER_VOLTAGE 3.3V
+set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 3.3V
 set_global_assignment -name SLD_FILE db/cmd_rx_test_auto_stripped.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

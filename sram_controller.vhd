@@ -77,7 +77,8 @@ BEGIN
 
 -- instantiate write FIFO
 -- reads are synchronized to the clk input, writes to the wr_clk input
-writefifo: sram_write_fifo PORT MAP(aclr => fifo_clear, data => wr_addr & wr_data, 
+writefifo: ENTITY work.sram_write_fifo(syn) PORT MAP(
+	aclr => fifo_clear, data => wr_addr & wr_data, 
 	rdclk => clk, rdreq => fifo_readrq, wrclk => wr_clk, wrreq => wr_req, 
 	q => fifo_read, rdempty => fifo_empty, wrfull => wr_full
 );
@@ -108,6 +109,7 @@ BEGIN
 				-- de-assert the chip
 				cs <= '1';
 				we <= '1';
+				oe <= '1';
 				
 				-- re-assert the idle state
 				status <= (OTHERS => '0');
@@ -128,7 +130,7 @@ BEGIN
 			
 			-- First write state; puts address and data on output
 			WHEN MEM_WRITE =>
-				-- set state
+				-- set status
 				status <= "01";
 				
 				-- data on the read bus is no longer valid

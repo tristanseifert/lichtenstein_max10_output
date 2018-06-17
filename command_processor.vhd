@@ -238,6 +238,9 @@ BEGIN
 			WHEN PARSE_CMD =>
 				-- received a command
 				status(1) <= '0';
+				
+				-- clear error
+				error <= '0';
 			
 				-- check the command
 				CASE command IS
@@ -271,8 +274,8 @@ BEGIN
 				status(0) <= '1';
 				
 				-- write the high byte of the output status register
---				spi_tx <= output_status(15 downto 8);
-				spi_tx <= "11011110";
+				spi_tx <= output_status(15 downto 8);
+--				spi_tx <= "11011110";
 				spi_tx_valid <= '1';
 				
 				-- wait for output to become ready before outputting status
@@ -282,8 +285,8 @@ BEGIN
 			-- output the low byte of the output status register
 			WHEN OUTPUT_STATUS_LOW =>
 				-- write the high byte of the output status register
---				spi_tx <= output_status(7 downto 0);
-				spi_tx <= "10101101";
+				spi_tx <= output_status(7 downto 0);
+--				spi_tx <= "10101101";
 				spi_tx_valid <= '1';
 				
 				-- go to the clear state
@@ -311,11 +314,12 @@ BEGIN
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= WRSRAM_DATA;
 			
+			
 			-- read a byte of data from the SPI bus and write it to SRAM
 			WHEN WRSRAM_DATA =>
 				-- make sure write FIFO full signal is not asserted
 				IF sram_wr_full = '0' THEN
-					-- read data, increment address counter
+					-- place SPI rx data on bus, increment address counter
 					sram_wr_data <= spi_rx;
 					sram_wr_addr <= mem_write_addr;
 					sram_wr_req <= '1';
