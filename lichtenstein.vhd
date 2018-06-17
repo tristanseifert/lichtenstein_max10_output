@@ -73,25 +73,6 @@ COMPONENT sram_controller
 END COMPONENT;
 
 
--- SPI slave controller
-component SPI_SLAVE is
-    PORT (
-        CLK      : in  std_logic; -- system clock
-        RST      : in  std_logic; -- high active synchronous reset
-        -- SPI SLAVE INTERFACE
-        SCLK     : in  std_logic; -- SPI clock
-        CS_N     : in  std_logic; -- SPI chip select, active in low
-        MOSI     : in  std_logic; -- SPI serial data from master to slave
-        MISO     : out std_logic; -- SPI serial data from slave to master
-        -- USER INTERFACE
-        DIN      : in  std_logic_vector(7 downto 0); -- input data for SPI master
-        DIN_VLD  : in  std_logic; -- when DIN_VLD = 1, input data are valid
-        READY    : out std_logic; -- when READY = 1, valid input data are accept
-        DOUT     : out std_logic_vector(7 downto 0); -- output data from SPI master
-        DOUT_VLD : out std_logic  -- when DOUT_VLD = 1, output data are valid
-    );
-END COMPONENT;
-
 -- command processor
 COMPONENT command_processor
 	PORT
@@ -278,14 +259,56 @@ sram: sram_controller PORT MAP(nreset => sram_nreset, clk => clk_48,
 	status => sram_status
 );
 
--- SPI slave
---spi_miso <= 'Z';
+-- SPI slave (mode 0)
+Inst_spi_slave: ENTITY work.spi_slave(rtl)
+	GENERIC MAP(N => 8, CPOL => '0', CPHA => '0', PREFETCH => 2)
+	PORT MAP(
+		clk_i => clk_48,
+		spi_ssel_i => spi_cs,
+		spi_sck_i => spi_sck,
+		spi_mosi_i => spi_mosi,
+		spi_miso_o => spi_miso,
 
-spi: SPI_SLAVE PORT MAP(CLK => clk_48, RST => spi_reset, SCLK => spi_sck,
-	CS_N => spi_cs, MOSI => spi_mosi, MISO => spi_miso, DIN => spi_tx,
-	DIN_VLD => spi_tx_valid, READY => spi_tx_ready, DOUT => spi_rx,
-	DOUT_VLD => spi_rx_valid
+		-- request for more data (write new tx data when high)
+		di_req_o => spi_tx_ready,
+		-- transmit data
+		di_i => spi_tx,
+		-- write request (assert that tx data is valid)
+		wren_i => spi_tx_valid,
+
+		-- rx data valid
+		do_valid_o => spi_rx_valid,
+		-- rx data
+		do_o => spi_rx
 );
+
+-- MISO is always high
+--PROCESS (clk_48) IS
+--BEGIN
+--	IF rising_edge(clk_48) THEN
+--		IF spi_cs = '0' THEN
+--			spi_miso <= '1';
+--		ELSE
+--			spi_miso <= 'Z';
+--		END IF;
+--	END IF;
+--END PROCESS;
+
+-- SPI loopback
+--PROCESS (clk_24) IS
+--BEGIN
+--	IF rising_edge(clk_24) THEN
+--		-- is CS asserted?
+--		IF spi_cs = '0' THEN
+--			-- if so, output what's on the input lines.
+----			spi_miso <= heartbeat_timer(20);
+--			spi_miso <= spi_mosi;
+--		ELSE
+--			-- otherwise, put output into hi z
+--			spi_miso <= 'Z';
+--		END IF;
+--	END IF;
+--END PROCESS;
 
 -- command processor
 cmd: command_processor PORT MAP(nreset => cmd_nreset, clk => clk_48,
@@ -379,7 +402,7 @@ BEGIN
 	IF rising_edge(pwmclk) THEN
 		heartbeat_timer <= heartbeat_timer + 1;
 		
-		status(0) <= heartbeat_timer(20);
+		status(3) <= heartbeat_timer(20);
 	END IF;
 END PROCESS;
 
@@ -407,11 +430,12 @@ END PROCESS;
 PROCESS (clk_48) IS
 BEGIN
 	IF rising_edge (pwmclk) THEN
-		status(2) <= cmd_status(0); 
+--		status(1) <= spi_mosi;
+--		status(0) <= NOT(spi_cs); -- 1 when chip select is 0
+		status(0) <= cmd_error; -- timeout (or other error)
 		
-		status(3) <= cmd_status(1); -- idle
-		
-		status(1) <= cmd_error;
+		status(1) <= cmd_status(0); -- processing cmd
+		status(2) <= cmd_status(1); -- idle
 	END IF;
 END PROCESS;
 

@@ -1,6 +1,7 @@
 LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
 USE ieee.std_logic_unsigned.ALL;
+USE ieee.std_logic_misc.ALL;
 USE ieee.numeric_std.ALL; 
 
 ENTITY command_processor IS
@@ -68,14 +69,12 @@ SIGNAL state:				state_t;
 -- state to set when output becomes ready
 SIGNAL output_rdy_state:	state_t;
 -- timeout counter for output ready
-SIGNAL output_rdy_timeout:	STD_LOGIC_VECTOR(7 downto 0) := (OTHERS => '0');
-CONSTANT output_rdy_timeout_max:	STD_LOGIC_VECTOR(7 downto 0) := "11111111";
+SIGNAL output_rdy_timeout:	STD_LOGIC_VECTOR(8 downto 0) := (OTHERS => '0');
 
 -- state to set when a byte has been read
 SIGNAL byte_rx_state:		state_t;
 -- timeout counter for byte rx state
-SIGNAL byte_rx_timeout:		STD_LOGIC_VECTOR(7 downto 0) := (OTHERS => '0');
-CONSTANT byte_rx_timeout_max:	STD_LOGIC_VECTOR(7 downto 0) := "11111111";
+SIGNAL byte_rx_timeout:		STD_LOGIC_VECTOR(8 downto 0) := (OTHERS => '0');
 
 ---------------------------------------
 -- command parsing
@@ -177,6 +176,9 @@ BEGIN
 				
 			-- Wait for output to become ready
 			WHEN WAIT_OUTPUT_RDY =>
+				-- de-assert the write signal
+				spi_tx_valid <= '0';
+			
 				-- is the output ready?
 				IF (spi_tx_ready = '1') THEN
 					-- if so, advance the state
@@ -187,7 +189,7 @@ BEGIN
 					output_rdy_timeout <= output_rdy_timeout + 1;
 					
 					-- if the timer is expired, go back to idle
-					IF output_rdy_timeout = output_rdy_timeout_max THEN
+					IF and_reduce(output_rdy_timeout) = '1' THEN
 						state <= CLEAR_SPI;
 						
 						-- assert error signal
@@ -207,7 +209,7 @@ BEGIN
 					byte_rx_timeout <= byte_rx_timeout + 1;
 					
 					-- if the timer is expired, go back to idle
-					IF byte_rx_timeout = output_rdy_timeout_max THEN
+					IF and_reduce(byte_rx_timeout) = '1' THEN
 						state <= CLEAR_SPI;
 						
 						-- assert error signal
@@ -241,8 +243,10 @@ BEGIN
 				CASE command IS
 					-- status request?
 					WHEN "00" =>
-						state <= WAIT_OUTPUT_RDY;
-						output_rdy_state <= OUTPUT_STATUS_HIGH;
+--						state <= WAIT_OUTPUT_RDY;
+--						output_rdy_state <= OUTPUT_STATUS_HIGH;
+
+						state <= OUTPUT_STATUS_HIGH;
 					
 					-- SRAM write?
 					WHEN "01" =>
