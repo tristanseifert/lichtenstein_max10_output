@@ -11,6 +11,9 @@ ENTITY command_processor IS
 		nreset:		IN STD_LOGIC;
 		clk:			IN STD_LOGIC;
 		
+		status:		OUT STD_LOGIC_VECTOR(1 downto 0) := (OTHERS => '0');
+		error:		OUT STD_LOGIC := '0';
+		
 		---------------------------------------
 		-- SPI interface
 		spi_tx:		OUT STD_LOGIC_VECTOR(7 downto 0);
@@ -65,13 +68,13 @@ SIGNAL state:				state_t;
 -- state to set when output becomes ready
 SIGNAL output_rdy_state:	state_t;
 -- timeout counter for output ready
-SIGNAL output_rdy_timeout:	STD_LOGIC_VECTOR(7 downto 0);
+SIGNAL output_rdy_timeout:	STD_LOGIC_VECTOR(7 downto 0) := (OTHERS => '0');
 CONSTANT output_rdy_timeout_max:	STD_LOGIC_VECTOR(7 downto 0) := "11111111";
 
 -- state to set when a byte has been read
 SIGNAL byte_rx_state:		state_t;
 -- timeout counter for byte rx state
-SIGNAL byte_rx_timeout:		STD_LOGIC_VECTOR(7 downto 0);
+SIGNAL byte_rx_timeout:		STD_LOGIC_VECTOR(7 downto 0) := (OTHERS => '0');
 CONSTANT byte_rx_timeout_max:	STD_LOGIC_VECTOR(7 downto 0) := "11111111";
 
 ---------------------------------------
@@ -106,7 +109,6 @@ BEGIN
 
 PROCESS (clk, nreset)
 BEGIN
-
 	-- Is reset asserted?
 	IF nreset = '0' THEN
 		-- if so, reset the state machine
@@ -142,6 +144,12 @@ BEGIN
 		out_reg_channel <= 0;
 		out_reg_addr <= (OTHERS => '0');
 		out_reg_length <= (OTHERS => '0');
+				
+		-- clear status
+		status <= (OTHERS => '0');
+		
+		-- clear error status
+		error <= '0';
 	ELSIF (clk = '1' and clk'event) THEN
 		-- otherwise, perform the state
 		CASE state IS
@@ -150,6 +158,11 @@ BEGIN
 				-- reset timeouts
 				output_rdy_timeout <= (OTHERS => '0');
 				byte_rx_timeout <= (OTHERS => '0');
+				
+				-- clear status
+				status(0) <= '0';
+				status(1) <= '1';
+--				status <= (OTHERS => '0');
 			
 				-- is the SPI RX DATA VALID signal asserted?
 				IF (spi_rx_valid = '1') THEN 
@@ -176,6 +189,9 @@ BEGIN
 					-- if the timer is expired, go back to idle
 					IF output_rdy_timeout = output_rdy_timeout_max THEN
 						state <= CLEAR_SPI;
+						
+						-- assert error signal
+						error <= '1';
 					END IF;
 				END IF;
 				
@@ -193,6 +209,9 @@ BEGIN
 					-- if the timer is expired, go back to idle
 					IF byte_rx_timeout = output_rdy_timeout_max THEN
 						state <= CLEAR_SPI;
+						
+						-- assert error signal
+						error <= '1';
 					END IF;
 				END IF;
 				
@@ -215,6 +234,9 @@ BEGIN
 			-- what next state to use: 00 outputs the status registers, 01 starts
 			-- an SRAM write, and 10 performs an output register write.
 			WHEN PARSE_CMD =>
+				-- received a command
+				status(1) <= '0';
+			
 				-- check the command
 				CASE command IS
 					-- status request?
@@ -242,8 +264,11 @@ BEGIN
 				
 			-- Output the high byte of the output status register.
 			WHEN OUTPUT_STATUS_HIGH =>
+				status(0) <= '1';
+				
 				-- write the high byte of the output status register
-				spi_tx <= output_status(15 downto 8);
+--				spi_tx <= output_status(15 downto 8);
+				spi_tx <= "11011110";
 				spi_tx_valid <= '1';
 				
 				-- wait for output to become ready before outputting status
@@ -253,7 +278,8 @@ BEGIN
 			-- output the low byte of the output status register
 			WHEN OUTPUT_STATUS_LOW =>
 				-- write the high byte of the output status register
-				spi_tx <= output_status(7 downto 0);
+--				spi_tx <= output_status(7 downto 0);
+				spi_tx <= "10101101";
 				spi_tx_valid <= '1';
 				
 				-- go to the clear state
@@ -281,7 +307,7 @@ BEGIN
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= WRSRAM_DATA;
 			
-			-- read a byte of data from the SPI bus and write it
+			-- read a byte of data from the SPI bus and write it to SRAM
 			WHEN WRSRAM_DATA =>
 				-- make sure write FIFO full signal is not asserted
 				IF sram_wr_full = '0' THEN

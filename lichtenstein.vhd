@@ -2,6 +2,7 @@ LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
 USE ieee.std_logic_unsigned.ALL;
 USE ieee.numeric_std.ALL; 
+USE ieee.std_logic_misc.ALL;
 
 ENTITY lichtenstein IS
       PORT(
@@ -18,7 +19,7 @@ ENTITY lichtenstein IS
 			-- SPI bus
 			spi_cs:		  IN STD_LOGIC;
 			spi_mosi:	  IN STD_LOGIC;
-			spi_miso:	 OUT STD_LOGIC;
+			spi_miso:	 OUT STD_LOGIC := 'Z';
 			spi_sck:		  IN STD_LOGIC;
 			
 			-- strobes from host
@@ -29,7 +30,7 @@ ENTITY lichtenstein IS
 			status:		 OUT STD_LOGIC_VECTOR(3 downto 0) := (OTHERS => '0');
 			
 			-- PWM output
-			pwm_out:		 OUT STD_LOGIC_VECTOR(15 downto 0);
+			pwm_out:		 OUT STD_LOGIC_VECTOR(15 downto 0) := (OTHERS => '0');
 			-- output enables for each bank of 8
 			pwm_out_enable:	OUT STD_LOGIC_VECTOR(1 downto 0) := (OTHERS => '1')
 		);
@@ -64,7 +65,10 @@ COMPONENT sram_controller
 		rd_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
 		rd_data:		OUT STD_LOGIC_VECTOR(7 downto 0);
 		rd_req:		IN STD_LOGIC := '0';
-		rd_valid:	OUT STD_LOGIC := '0'
+		rd_valid:	OUT STD_LOGIC := '0';
+		
+		-- controller status: (00 idle, 01 write, 10 read)
+		status:		OUT STD_LOGIC_VECTOR(1 downto 0)
 	);
 END COMPONENT;
 
@@ -96,6 +100,9 @@ COMPONENT command_processor
 		-- clock and reset
 		nreset:		IN STD_LOGIC;
 		clk:			IN STD_LOGIC;
+		
+		status:		OUT STD_LOGIC_VECTOR(1 downto 0) := (OTHERS => '0');
+		error:		OUT STD_LOGIC := '0';
 		
 		---------------------------------------
 		-- SPI interface
@@ -150,7 +157,10 @@ COMPONENT output IS
 		
 		-- output
 		pwmout:		OUT STD_LOGIC := '0';
-		pwmout_en:	IN STD_LOGIC := '0'
+		pwmout_en:	IN STD_LOGIC := '0';
+		
+		-- asserted when the output is active
+		pwmout_act:	OUT STD_LOGIC := '0'
 	);
 END COMPONENT;
 
@@ -204,7 +214,12 @@ SIGNAL sram_rddata					: STD_LOGIC_VECTOR(7 downto 0);
 SIGNAL sram_rdreq						: STD_LOGIC := '0';
 SIGNAL sram_rdvalid					: STD_LOGIC;
 
+-- SRAM status
+signal sram_status					: STD_LOGIC_VECTOR(1 downto 0);
+
 -- SPI interface
+signal spi_miso_tmp					: STD_LOGIC;
+
 signal spi_reset						: STD_LOGIC := '0';
 
 signal spi_tx							: STD_LOGIC_VECTOR(7 downto 0);
@@ -217,6 +232,10 @@ signal spi_rx_valid					: STD_LOGIC;
 -- command processor
 signal cmd_nreset						: STD_LOGIC := '1';
 
+signal cmd_status						: STD_LOGIC_VECTOR(1 downto 0);
+signal cmd_error						: STD_LOGIC;
+
+
 -- output register bus
 SIGNAL out_reg_addr					: STD_LOGIC_VECTOR(17 downto 0);
 SIGNAL out_reg_bytes					: STD_LOGIC_VECTOR(15 downto 0);
@@ -228,8 +247,11 @@ SIGNAL out_nreset						: STD_LOGIC := '1';
 SIGNAL out_rd_allowed				: STD_LOGIC_VECTOR(15 downto 0) := (OTHERS => '0');
 SIGNAL out_rd_desired				: STD_LOGIC_VECTOR(15 downto 0);
 
+SIGNAL out_active						: STD_LOGIC_VECTOR(15 downto 0) := (OTHERS => '0');
+
 -- output read arbiter
 SIGNAL out_arbiter_nreset			: STD_LOGIC := '1';
+
 
 -- timer for blinking heartbeat LED
 SIGNAL heartbeat_timer				: STD_LOGIC_VECTOR(20 downto 0) := (OTHERS => '0');
@@ -243,15 +265,22 @@ clocks: mainpll PORT MAP(areset => pll_reset, inclk0 => clkin, c0 => clk_24,
 
 -- SRAM controller
 sram: sram_controller PORT MAP(nreset => sram_nreset, clk => clk_48, 
+	
 	address => sram_addr, data => sram_data, cs => sram_ce, 
 	oe => sram_oe, we => sram_we, wr_clk => clk_24, 
+	
 	wr_req => sram_wrreq, wr_data => sram_wrdata, 
 	wr_addr => sram_wraddr, wr_full => sram_wrfull,
+	
 	rd_addr => sram_rdaddr, rd_data => sram_rddata, rd_req => sram_rdreq,
-	rd_valid => sram_rdvalid
+	rd_valid => sram_rdvalid,
+	
+	status => sram_status
 );
 
 -- SPI slave
+--spi_miso <= 'Z';
+
 spi: SPI_SLAVE PORT MAP(CLK => clk_48, RST => spi_reset, SCLK => spi_sck,
 	CS_N => spi_cs, MOSI => spi_mosi, MISO => spi_miso, DIN => spi_tx,
 	DIN_VLD => spi_tx_valid, READY => spi_tx_ready, DOUT => spi_rx,
@@ -259,7 +288,9 @@ spi: SPI_SLAVE PORT MAP(CLK => clk_48, RST => spi_reset, SCLK => spi_sck,
 );
 
 -- command processor
-cmd: command_processor PORT MAP(nreset => cmd_nreset, clk => clk_48, 
+cmd: command_processor PORT MAP(nreset => cmd_nreset, clk => clk_48,
+
+	status => cmd_status, error => cmd_error,
 	
 	spi_tx => spi_tx, spi_tx_valid => spi_tx_valid, spi_rx => spi_rx,
 	spi_tx_ready => spi_tx_ready,
@@ -279,10 +310,10 @@ arbiter: read_arbiter PORT MAP(
 	rdreq_in => out_rd_desired, rdreq_ack => out_rd_allowed
 );
 
--- instantiate output channels
 
+-- instantiate output channels
 GEN_OUT:
-FOR I IN 0 to 7 GENERATE
+FOR I IN 0 to 1 GENERATE
 	OUTX: output PORT MAP(
 		nreset => out_nreset, clk => clk_48, pwmclk => pwmclk,
 		
@@ -293,7 +324,9 @@ FOR I IN 0 to 7 GENERATE
 		rd_addr => sram_rdaddr, rd_data => sram_rddata, rd_req => sram_rdreq,
 		rd_allowed => out_rd_allowed(I), rd_desired => out_rd_desired(I),
 		
-		pwmout => pwm_out(I), pwmout_en => ledout_en
+		pwmout => pwm_out(I), pwmout_en => ledout_en,
+		
+		pwmout_act => out_active(I)
 	);
 END GENERATE GEN_OUT;
 
@@ -347,6 +380,38 @@ BEGIN
 		heartbeat_timer <= heartbeat_timer + 1;
 		
 		status(0) <= heartbeat_timer(20);
+	END IF;
+END PROCESS;
+
+-- status LED 1 is active if ANY channel is outputting data
+-- also, synthesize the output drivers' OE signals
+PROCESS (pwmclk) IS
+BEGIN
+	IF rising_edge(pwmclk) THEN
+--		status(1) <= or_reduce(out_active);
+		
+		pwm_out_enable(0) <= or_reduce(out_active(7 downto 0));
+		pwm_out_enable(1) <= or_reduce(out_active(15 downto 8));
+	END IF;
+END PROCESS;
+
+-- status LED 2 is indicating the status of SRAM controller (1 = write)
+--PROCESS (clk_48) IS
+--BEGIN
+--	IF rising_edge (pwmclk) THEN
+--		status(2) <= sram_status(0);
+--	END IF;
+--END PROCESS;
+
+-- status LED 3 indicates when we received a command
+PROCESS (clk_48) IS
+BEGIN
+	IF rising_edge (pwmclk) THEN
+		status(2) <= cmd_status(0); 
+		
+		status(3) <= cmd_status(1); -- idle
+		
+		status(1) <= cmd_error;
 	END IF;
 END PROCESS;
 

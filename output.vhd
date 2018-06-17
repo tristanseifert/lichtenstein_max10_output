@@ -29,7 +29,10 @@ ENTITY output IS
 		
 		-- output
 		pwmout:		OUT STD_LOGIC := '0';
-		pwmout_en:	IN STD_LOGIC := '0'
+		pwmout_en:	IN STD_LOGIC := '0';
+		
+		-- asserted when the output is active
+		pwmout_act:	OUT STD_LOGIC := '0'
 	);
 END output;
 
@@ -122,6 +125,9 @@ BEGIN
 			byte_output <= (OTHERS => '0');
 					
 			fifo_reader_state <= WAIT_FIFO_NOT_EMPTY;
+					
+			-- output is not active
+			pwmout_act <= '0';
 	ELSIF (pwmclk = '1' and pwmclk'event) THEN
 		CASE fifo_reader_state IS
 			-- waits for the FIFO to not be empty
@@ -130,6 +136,9 @@ BEGIN
 				IF fifo_empty = '0' THEN
 					-- if so, request a byte and output it
 					fifo_reader_state <= REQ_BYTE;
+					
+					-- output is active
+					pwmout_act <= '1';
 				ELSE
 					-- wait some more
 					fifo_reader_state <= WAIT_FIFO_NOT_EMPTY;
@@ -137,6 +146,8 @@ BEGIN
 					-- the output is not active
 					output_active <= '0';
 					pwmout <= '0';
+					
+					pwmout_act <= '0';
 				END IF;
 			
 			-- asserts the FIFO read request line

@@ -18,6 +18,7 @@ ENTITY sram_controller IS
 		
 		-- write interface
 		wr_clk:		IN STD_LOGIC;
+		
 		wr_req:		IN STD_LOGIC := '1';
 		wr_data:		IN STD_LOGIC_VECTOR(7 downto 0);
 		wr_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
@@ -27,7 +28,10 @@ ENTITY sram_controller IS
 		rd_addr:		IN STD_LOGIC_VECTOR(17 downto 0);
 		rd_data:		OUT STD_LOGIC_VECTOR(7 downto 0);
 		rd_req:		IN STD_LOGIC := '0';
-		rd_valid:	OUT STD_LOGIC := '0'
+		rd_valid:	OUT STD_LOGIC := '0';
+		
+		-- controller status: (00 idle, 01 write, 10 read)
+		status:		OUT STD_LOGIC_VECTOR(1 downto 0) := (OTHERS => '0')
 	);
 END sram_controller;
 
@@ -62,7 +66,7 @@ signal fifo_readrq	: STD_LOGIC := '0';
 TYPE state_t IS (
 	IDLE,
 	
-	MEM_WRITE, 
+	MEM_WRITE, MEM_WRITE_2,
 	MEM_READ_ADDR, MEM_READ_DATA
 );
 
@@ -105,6 +109,9 @@ BEGIN
 				cs <= '1';
 				we <= '1';
 				
+				-- re-assert the idle state
+				status <= (OTHERS => '0');
+				
 				-- is there a read request?
 				IF rd_req = '1' THEN
 					-- if so, go into the read state
@@ -119,8 +126,11 @@ BEGIN
 			
 			
 			
-			-- Write state; puts address and data on output
+			-- First write state; puts address and data on output
 			WHEN MEM_WRITE =>
+				-- set state
+				status <= "01";
+				
 				-- data on the read bus is no longer valid
 				rd_valid <= '0';
 				
@@ -136,6 +146,11 @@ BEGIN
 				-- de-assert read request on the FIFO
 				fifo_readrq <= '0';
 				
+				-- go to the second write state so that the write finishes
+				state <= MEM_WRITE_2;
+				
+			-- Second write state: nothing lol
+			WHEN MEM_WRITE_2 =>				
 				-- go back to the idle state
 				state <= IDLE;
 			
@@ -143,6 +158,9 @@ BEGIN
 			
 			-- First read state: puts address on the bus
 			WHEN MEM_READ_ADDR =>
+				-- set state
+				status <= "10";
+				
 				-- select the chip, disable write, enable output
 				cs <= '0';
 				we <= '1';

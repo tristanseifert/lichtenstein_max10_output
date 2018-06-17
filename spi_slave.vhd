@@ -195,11 +195,18 @@ begin
     miso_p : process (CLK)
     begin
         if (rising_edge(CLK)) then
-            if (load_data_en = '1') then
-                MISO <= DIN(7);
-            elsif (spi_clk_fedge_en = '1' and CS_N = '0') then
-                MISO <= data_shreg(7);
-            end if;
+				-- put MISO as hi-z if CS is not asserted (the boot flash of the
+				-- Omega SoC is on the same SPI bus, so it won't boot/panic if we
+				-- drive MISO and aren't asserted)
+				IF CS_N = '1' THEN
+					MISO <= 'Z';
+				ELSE
+					if (load_data_en = '1') then
+						 MISO <= DIN(7);
+					elsif (spi_clk_fedge_en = '1' and CS_N = '0') then
+						 MISO <= data_shreg(7);
+					end if;
+				END IF;
         end if;
     end process;
 
