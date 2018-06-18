@@ -10,8 +10,8 @@ ENTITY output IS
 		-- clocks and reset
 		nreset:		IN STD_LOGIC;
 		
-		clk:			IN STD_LOGIC;
-		pwmclk:		IN STD_LOGIC;
+		clk:			IN STD_LOGIC; -- clock for FIFO filler/reading from SRAM
+		pwmclk:		IN STD_LOGIC; -- 10MHz clock for generating output waveform
 		
 		-- register write bus (from command interpreter)
 		reg_addr:	IN STD_LOGIC_VECTOR(17 downto 0);
@@ -70,25 +70,33 @@ SIGNAL addr_counter:				STD_LOGIC_VECTOR(17 downto 0);
 SIGNAL bytes_counter:			STD_LOGIC_VECTOR(15 downto 0);
 
 ---------------------------------------
--- FSM state for FIFO reader
+-- FSM state for FIFO reader (output generator)
 TYPE fifo_reader_state_t IS (	
-	WAIT_FIFO_NOT_EMPTY, REQ_BYTE, READ_BYTE, OUTPUT_BYTE,
+	WAIT_FIFO_NOT_EMPTY, FIFO_DELAY, REQ_BYTE, READ_BYTE, 
 	
-	OUTPUT_1, OUTPUT_1_WAIT, OUTPUT_0, OUTPUT_0_WAIT,
-	OUTPUT_1_LAST, OUTPUT_1_LAST_WAIT, OUTPUT_0_LAST
+	OUTPUT_BYTE,
+	
+	OUTPUT_HIGH, OUTPUT_LOW,
+	OUTPUT_HIGH_LAST, OUTPUT_LOW_LAST
 );
 
 -- state to use for the next invocation
 SIGNAL fifo_reader_state:		fifo_reader_state_t;
 
 ---------------------------------------
--- high when the output is active
-SIGNAL output_active:			STD_LOGIC := '0';
+-- output counters and data
 
 -- number of bits output per byte
 SIGNAL bits_output_counter:	INTEGER RANGE 0 TO 7 := 0;
 -- byte currently being output
 SIGNAL byte_output:				STD_LOGIC_VECTOR(7 downto 0) := (OTHERS => '0');
+
+-- cycle counter for generating waveform
+SIGNAL cycle_counter_high:		INTEGER RANGE 0 TO 15 := 0;
+SIGNAL cycle_counter_low:		INTEGER RANGE 0 TO 15 := 0;
+
+-- cycle counter for waiting after the FIFO has data and output is started
+SIGNAL cycle_counter_start:	INTEGER RANGE 0 TO 7 := 0;
 
 ---------------------------------------
 -- FIFO interface
@@ -103,15 +111,25 @@ SIGNAL fifo_din:					STD_LOGIC_VECTOR(7 downto 0) := "01010101";
 
 ---------------------------------------
 -- test interface
-SIGNAL test_bytes_written:		STD_LOGIC_VECTOR(3 downto 0) := (OTHERS => '0');
-SIGNAL test_counter:				STD_LOGIC_VECTOR(22 downto 0) := (OTHERS => '0');
+SIGNAL test_bytes_written:		STD_LOGIC_VECTOR(7 downto 0) := (OTHERS => '0');
+SIGNAL test_counter:				STD_LOGIC_VECTOR(25 downto 0) := (OTHERS => '0');
 
+SIGNAL test_index:				STD_LOGIC_VECTOR(1 downto 0) := (OTHERS => '0');
+
+---------------------------------------
+-- test data to fill the FIFO with
 TYPE T_DATA IS ARRAY (0 to 15) OF STD_LOGIC_VECTOR(7 downto 0);
 CONSTANT test_data : T_DATA := (
 	"10000000", "00000000", "00000000", "00000000",
 	"00000000", "10000000", "00000000", "00000000",
 	"00000000", "00000000", "10000000", "00000000",
 	"00000000", "00000000", "00000000", "10000000"
+
+-- for testing the bit widths and timings
+--	"10101010", "00000000", "00000000", "00000000",
+--	"00000000", "00000000", "00000000", "00000000",
+--	"01010101", "00000000", "00000000", "00000000",
+--	"11111111", "00000000", "00000000", "00000000"
 );
 
 BEGIN
@@ -145,28 +163,40 @@ BEGIN
 			
 			-- clear output error
 			out_error <= '0';
-	ELSIF (pwmclk = '1' and pwmclk'event) THEN
-		out_error <= fifo_empty;
-	
+	ELSIF (pwmclk = '1' and pwmclk'event) THEN	
 		CASE fifo_reader_state IS
 			-- waits for the FIFO to not be empty
 			WHEN WAIT_FIFO_NOT_EMPTY =>
 				-- is the FIFO not empty?
 				IF fifo_empty = '0' THEN
-					-- if so, request a byte and output it
-					fifo_reader_state <= REQ_BYTE;
+					-- if so, wait a couple cycles to allow for buffers to activate
+					cycle_counter_start <= 7;
+					fifo_reader_state <= FIFO_DELAY;
 					
-					-- output is active
+					-- assert output activity indicator
 					pwmout_act <= '1';
 				ELSE
 					-- wait some more
 					fifo_reader_state <= WAIT_FIFO_NOT_EMPTY;
 					
-					-- the output is not active
-					output_active <= '0';
+					-- pull signal low to initiate reset if there's no more data
 					pwmout <= '0';
 					
+					-- de-assert activity indicator
 					pwmout_act <= '0';
+				END IF;
+				
+			-- waits until the cycle counter expires
+			WHEN FIFO_DELAY =>
+				-- is the timer expired?
+				IF cycle_counter_start = 0 THEN
+					-- if so, request a byte
+					fifo_reader_state <= REQ_BYTE;
+				ELSE
+					-- if not, decrement the counter
+					cycle_counter_start <= cycle_counter_start - 1;
+					
+					fifo_reader_state <= FIFO_DELAY;
 				END IF;
 			
 			-- asserts the FIFO read request line
@@ -184,39 +214,37 @@ BEGIN
 				
 				-- latch data from FIFO and clear output counter
 				byte_output <= fifo_dout;
+--				byte_output <= "10000001";
 				bits_output_counter <= 0;
 				
 				-- begin to output the byte
 				fifo_reader_state <= OUTPUT_BYTE;
 			
 			-- outputs the byte, bit by bit
-			WHEN OUTPUT_BYTE =>
-				-- the output is indeed active
-				output_active <= '1';
-				
-				-- set the output to be high
+			WHEN OUTPUT_BYTE =>				
+				-- set the output to be high for the first part of the bit
 				pwmout <= '1';
+				
+				
+				-- set timings for the output bits
+				IF byte_output(7) = '1' THEN
+					-- 1 bits are high for 600ns, low for 400ns
+					cycle_counter_high <= 4; -- was 5
+					cycle_counter_low  <= 5; -- was 3
+				ELSE
+					-- 0 bits are high for 300ns, low for 900ns
+					cycle_counter_high <= 1;
+					cycle_counter_low  <= 8;
+				END IF;
+				
 				
 				-- is this the last bit to output?
 				IF bits_output_counter = 7 THEN
-					-- if so, skip the high/low time tracking
-					-- is it a 1 bit?
-					IF byte_output(7) = '1' THEN
-						-- 1 bits are high for two bit times
-						fifo_reader_state <= OUTPUT_1_LAST;
-					ELSE
-						-- 0 bits are high for one bit time
-						fifo_reader_state <= OUTPUT_0_LAST;
-					END IF;
-				ELSE					
-					-- is it a 1 bit?
-					IF byte_output(7) = '1' THEN
-						-- 1 bits are high for two bit times
-						fifo_reader_state <= OUTPUT_1;
-					ELSE
-						-- 0 bits are high for one bit time
-						fifo_reader_state <= OUTPUT_0;
-					END IF;
+					-- if so, load another byte after the bit is output
+					fifo_reader_state <= OUTPUT_HIGH_LAST;
+				ELSE										
+					-- output the high part of the waveform
+					fifo_reader_state <= OUTPUT_HIGH;
 					
 					-- increment the counter
 					bits_output_counter <= bits_output_counter + 1;
@@ -224,67 +252,84 @@ BEGIN
 				
 				
 				
-			-- when outputting a 0, the signal is high for one bit time only
-			-- this is for the case of it being the last bit shifted out
-			WHEN OUTPUT_0_LAST =>
-				-- make the output low, then read the next byte from the FIFO
-				pwmout <= '0';
+			-- output the high part of the signal
+			WHEN OUTPUT_HIGH =>
+				-- set output high
+				pwmout <= '1';
 				
-				-- is the FIFO empty?
-				IF fifo_empty = '0' THEN
-					-- if not, request another byte
-					fifo_reader_state <= REQ_BYTE;
+				-- has the counter expired?
+				IF cycle_counter_high = 0 THEN
+					-- if so, output the low part of the signal
+					fifo_reader_state <= OUTPUT_LOW;
 				ELSE
-					-- otherwise, wait for data to come into the FIFO
-					fifo_reader_state <= WAIT_FIFO_NOT_EMPTY;
+					-- if not, decrement it
+					cycle_counter_high <= cycle_counter_high - 1;
+					
+					fifo_reader_state <= OUTPUT_HIGH;
 				END IF;
-				
-			-- when outputting a 0, the signal is high for one bit time only
-			-- this is the general case of the first seven bits
-			WHEN OUTPUT_0 =>
-				-- make the output low, then wait one more cycle
+			-- output the low part of the signal
+			WHEN OUTPUT_LOW =>
+				-- set output low
 				pwmout <= '0';
+			
+				-- has the counter expired?
+				IF cycle_counter_low = 0 THEN
+					-- if so, shift the output sequence left one bit
+					byte_output <= byte_output(6 downto 0) & '0';
 				
-				-- shift the output sequence left one bit
-				byte_output <= byte_output(6 downto 0) & '0';				
-				
-				fifo_reader_state <= OUTPUT_0_WAIT;
-			-- go back to outputting, we've waited 3 cycles
-			WHEN OUTPUT_0_WAIT =>
-				fifo_reader_state <= OUTPUT_BYTE;
-				
-				
-				
-			-- when outputting a 1, the signal is high for two bit times
-			-- this is for the case of it being the last bit shifted out
-			WHEN OUTPUT_1_LAST =>
-				fifo_reader_state <= OUTPUT_1_LAST_WAIT;
-			WHEN OUTPUT_1_LAST_WAIT =>
-				pwmout <= '0';		
-				
-				-- is the FIFO empty?
-				IF fifo_empty = '0' THEN
-					-- if not, assert FIFO read request and read another byte
-					fifo_rdreq <= '1';
-				
-					fifo_reader_state <= READ_BYTE;
+					-- if so, output the next bit
+					fifo_reader_state <= OUTPUT_BYTE;
 				ELSE
-					-- otherwise, wait for data to come into the FIFO
-					fifo_reader_state <= WAIT_FIFO_NOT_EMPTY;
+					-- if not, decrement it
+					cycle_counter_low <= cycle_counter_low - 1;
+					
+					fifo_reader_state <= OUTPUT_LOW;
 				END IF;
+			
+		
+	
+			-- output the high part of the signal
+			WHEN OUTPUT_HIGH_LAST =>
+				-- set output high
+				pwmout <= '1';
 				
-			-- when outputting a 1, the signal is high for two bit times
-			WHEN OUTPUT_1 =>
-				-- shift the output sequence left one bit
-				byte_output <= byte_output(6 downto 0) & '0';
+				-- has the counter expired?
+				IF cycle_counter_high = 0 THEN
+					-- if so, output the low part of the signal
+					fifo_reader_state <= OUTPUT_LOW_LAST;
+				ELSE
+					-- if not, decrement it
+					cycle_counter_high <= cycle_counter_high - 1;
+					
+					fifo_reader_state <= OUTPUT_HIGH_LAST;
+				END IF;
+			-- output the low part of the signal
+			WHEN OUTPUT_LOW_LAST =>
+				-- set output low
+				pwmout <= '0';
+			
+				-- has the counter expired?
+				IF cycle_counter_low = 1 THEN
+					-- if so, shift the output sequence left one bit
+					byte_output <= byte_output(6 downto 0) & '0';
 				
-				fifo_reader_state <= OUTPUT_1_WAIT;
-			-- go back to outputting, we've waited 3 cycles
-			WHEN OUTPUT_1_WAIT =>
-				-- make the output low, then wait one more cycle
-				pwmout <= '0';		
-				
-				fifo_reader_state <= OUTPUT_BYTE;
+					-- is the FIFO empty?
+					IF fifo_empty = '0' THEN
+						-- if not, assert FIFO read request and read another byte
+						fifo_rdreq <= '1';
+					
+						fifo_reader_state <= READ_BYTE;
+					ELSE
+						-- TODO: wait 50uS to ensure reset happens?
+						-- otherwise, wait for data to come into the FIFO
+						fifo_reader_state <= WAIT_FIFO_NOT_EMPTY;
+					END IF;
+				ELSE
+					-- if not, decrement it
+					cycle_counter_low <= cycle_counter_low - 1;
+					
+					fifo_reader_state <= OUTPUT_LOW_LAST;
+				END IF;
 		END CASE;
 	END IF;
 END PROCESS;
@@ -307,10 +352,7 @@ BEGIN
 	ELSIF (clk = '1' and clk'event) THEN
 		CASE fifo_filler_state IS
 			-- idle: wait for the FIFO to not be full
-			WHEN IDLE =>
-				-- clear error flag
-				read_error <= '0';
-			
+			WHEN IDLE =>			
 				-- is the FIFO full?
 				IF fifo_full = '0' THEN
 					-- if not, write data
@@ -326,7 +368,7 @@ BEGIN
 				fifo_wrreq <= '1';
 				
 				-- write the appropriate data from our constant LUT
-				fifo_din <= test_data(to_integer(unsigned(test_bytes_written)));
+				fifo_din <= test_data(to_integer(unsigned(test_index(1 downto 0)) & unsigned(test_bytes_written(1 downto 0))));
 				
 				-- go to the next state
 				fifo_filler_state <= WAIT_READ_SLOT;
@@ -335,11 +377,11 @@ BEGIN
 			WHEN WAIT_READ_SLOT =>
 				fifo_wrreq <= '0';
 				
-				-- increment counter
+				-- increment counter of bytes written into the FIFO
 				test_bytes_written <= test_bytes_written + 1;
 				
 				-- did we write 16 bytes?
-				IF and_reduce(test_bytes_written) = '1' THEN
+				IF and_reduce(test_bytes_written(5 downto 0)) = '1' THEN
 					-- if so, start the wait timer
 					test_counter <= (OTHERS => '0');
 					fifo_filler_state <= WAIT_READ_VALID;				
@@ -349,10 +391,7 @@ BEGIN
 				END IF;
 				
 			-- wait to let the FIFO drain
-			WHEN WAIT_READ_VALID=>
-				-- set error flag
-				read_error <= '1';
-			
+			WHEN WAIT_READ_VALID=>			
 				-- clear number of bytes written
 				test_bytes_written <= (OTHERS => '0');
 			
@@ -360,10 +399,12 @@ BEGIN
 				test_counter <= test_counter + 1;
 				
 				-- did the timer expire?
-				IF test_counter(22) = '1' THEN
-					-- if so, repeat
+				IF and_reduce(test_counter) = '1' THEN
+					-- increment test pattern index timer
+					test_index <= test_index + 1;
+				
+					-- if so, wait for the FIFO to be empty
 					fifo_filler_state <= IDLE;
---					fifo_filler_state <= WAIT_READ_VALID;
 				ELSE
 					-- wait some more lol
 					fifo_filler_state <= WAIT_READ_VALID;

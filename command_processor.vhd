@@ -37,7 +37,11 @@ ENTITY command_processor IS
 		out_bytes:		OUT STD_LOGIC_VECTOR(15 downto 0);
 		
 		-- latch the addr/byte into one of the 16 output units
-		out_latch:		OUT STD_LOGIC_VECTOR(15 downto 0)
+		out_latch:		OUT STD_LOGIC_VECTOR(15 downto 0);
+		
+		---------------------------------------
+		-- output status
+		out_active:		IN STD_LOGIC_VECTOR(15 downto 0)
 	);
 END command_processor;
 

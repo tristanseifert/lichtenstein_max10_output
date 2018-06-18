@@ -36,6 +36,8 @@ ENTITY lichtenstein IS
 		);
 END lichtenstein;
 
+
+
 ARCHITECTURE SYN OF lichtenstein IS
 
 -- output clocks from PLL
@@ -43,8 +45,10 @@ SIGNAL clk_24, clk_48, pwmclk	: std_logic;
 SIGNAL pll_reset						: std_logic := '0';
 SIGNAL pll_locked						: std_logic;
 
+
 -- global reset, active 0
 SIGNAL gReset							: std_logic := '1';
+
 
 -- SRAM controller internal
 signal sram_nreset					: std_logic;
@@ -107,6 +111,7 @@ SIGNAL heartbeat_timer				: STD_LOGIC_VECTOR(20 downto 0) := (OTHERS => '0');
 
 BEGIN
 
+
 -- instantiate main PLL
 clocks: ENTITY work.mainpll(SYN) PORT MAP(areset => pll_reset, inclk0 => clkin, c0 => clk_24, 
 	c1 => clk_48, c2 => pwmclk, locked => pll_locked
@@ -126,6 +131,7 @@ sram: ENTITY work.sram_controller(SYN) PORT MAP(nreset => sram_nreset, clk => cl
 	
 	status => sram_status
 );
+
 
 -- SPI slave (mode 0)
 Inst_spi_slave: ENTITY work.spi_slave(rtl)
@@ -150,34 +156,6 @@ Inst_spi_slave: ENTITY work.spi_slave(rtl)
 		do_o => spi_rx
 );
 
--- MISO is always high
---PROCESS (clk_48) IS
---BEGIN
---	IF rising_edge(clk_48) THEN
---		IF spi_cs = '0' THEN
---			spi_miso <= '1';
---		ELSE
---			spi_miso <= 'Z';
---		END IF;
---	END IF;
---END PROCESS;
-
--- SPI loopback
---PROCESS (clk_24) IS
---BEGIN
---	IF rising_edge(clk_24) THEN
---		-- is CS asserted?
---		IF spi_cs = '0' THEN
---			-- if so, output what's on the input lines.
-----			spi_miso <= heartbeat_timer(20);
---			spi_miso <= spi_mosi;
---		ELSE
---			-- otherwise, put output into hi z
---			spi_miso <= 'Z';
---		END IF;
---	END IF;
---END PROCESS;
-
 -- command processor
 cmd: ENTITY work.command_processor(SYN) PORT MAP(nreset => cmd_nreset, clk => clk_48,
 
@@ -190,7 +168,7 @@ cmd: ENTITY work.command_processor(SYN) PORT MAP(nreset => cmd_nreset, clk => cl
 	sram_wr_req => sram_wrreq, sram_wr_full => sram_wrfull,
 	
 	out_addr => out_reg_addr, out_bytes => out_reg_bytes, 
-	out_latch => out_reg_latch
+	out_latch => out_reg_latch, out_active => out_active
 );
 
 -- read arbiter
@@ -281,13 +259,6 @@ PROCESS (pwmclk) IS
 BEGIN
 	IF rising_edge(pwmclk) THEN
 		status(3) <= or_reduce(out_active);
-		
-		status(1) <= or_reduce(out_pwm_error);
-		status(0) <= or_reduce(out_read_error);
-		
-		pwm_out(2) <= or_reduce(out_read_error);
-		
---		pwm_out_enable <= "11";
 		
 		pwm_out_enable(0) <= or_reduce(out_active(7 downto 0));
 		pwm_out_enable(1) <= or_reduce(out_active(15 downto 8));
