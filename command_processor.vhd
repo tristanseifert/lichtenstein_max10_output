@@ -53,7 +53,7 @@ ARCHITECTURE SYN OF command_processor IS
 TYPE state_t IS (
 	IDLE, 
 	
-	WAIT_OUTPUT_RDY, WAIT_READ_BYTE, CLEAR_SPI,
+	WAIT_OUTPUT_RDY, WAIT_READ_BYTE, WAIT_READ_BYTE_ACTUAL, CLEAR_SPI,
 	
 	PARSE_CMD, 
 	
@@ -154,10 +154,16 @@ BEGIN
 		-- clear error status
 		error <= '0';
 	ELSIF (clk = '1' and clk'event) THEN
+		-- latch output state
+		output_status <= out_active;
+	
 		-- otherwise, perform the state
 		CASE state IS
 			-- Idle; wait for the command to be received
 			WHEN IDLE =>
+				-- clear output register latch
+				out_latch <= (OTHERS => '0');
+				
 				-- reset timeouts
 				output_rdy_timeout <= (OTHERS => '0');
 				byte_rx_timeout <= (OTHERS => '0');
@@ -203,6 +209,11 @@ BEGIN
 				
 			-- Wait for a byte to be received
 			WHEN WAIT_READ_BYTE =>
+				state <= WAIT_READ_BYTE_ACTUAL;
+			WHEN WAIT_READ_BYTE_ACTUAL =>
+				-- clear tx valid
+				spi_tx_valid <= '0';
+			
 				-- is the output ready?
 				IF (spi_rx_valid = '1') THEN
 					-- if so, advance the state
@@ -227,9 +238,8 @@ BEGIN
 				spi_tx <= (OTHERS => '0');
 				spi_tx_valid <= '0';
 				
-				-- de-assert any latches
+				-- de-assert memory write latches
 				sram_wr_req <= '0';
-				out_latch <= (OTHERS => '0');
 				
 				-- go back to the idle state
 				state <= IDLE;
@@ -303,17 +313,29 @@ BEGIN
 			WHEN WRSRAM_ADDRHIGH =>
 				mem_write_addr(17 downto 16) <= spi_rx(1 downto 0);
 				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= "000000" & mem_write_addr(17 downto 16);
+				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= WRSRAM_ADDRMID;
 			-- read the middle byte of the SRAM write address
 			WHEN WRSRAM_ADDRMID =>
 				mem_write_addr(15 downto 8) <= spi_rx;
 				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= mem_write_addr(15 downto 8);
+				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= WRSRAM_ADDRLOW;
 			-- read the low byte of the SRAM write address
 			WHEN WRSRAM_ADDRLOW =>
 				mem_write_addr(7 downto 0) <= spi_rx;
+				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= mem_write_addr(7 downto 0);
 				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= WRSRAM_DATA;
@@ -327,6 +349,10 @@ BEGIN
 					sram_wr_data <= spi_rx;
 					sram_wr_addr <= mem_write_addr;
 					sram_wr_req <= '1';
+
+					-- DEBUG: write out to SPI
+--					spi_tx_valid <= '1';
+--					spi_tx <= spi_rx;
 			
 					-- wait for data again
 					state <= WRSRAM_DATA_WAIT;
@@ -355,12 +381,20 @@ BEGIN
 			WHEN REG_CHANNEL =>
 				out_reg_channel <= to_integer(signed(spi_rx(3 downto 0)));
 				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= "0000" & std_logic_vector(to_unsigned(out_reg_channel, 4));
+				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= REG_ADDRHIGH;
 			
 			-- Reads the high byte of the address to output data from
 			WHEN REG_ADDRHIGH =>
 				out_reg_addr(17 downto 16) <= spi_rx(1 downto 0);
+				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= "000000" & out_reg_addr(17 downto 16);
 				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= REG_ADDRMID;
@@ -369,12 +403,20 @@ BEGIN
 			WHEN REG_ADDRMID =>
 				out_reg_addr(15 downto 8) <= spi_rx;
 				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= out_reg_addr(15 downto 8);
+				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= REG_ADDRLOW;
 			
 			-- Reads the low byte of the address
 			WHEN REG_ADDRLOW =>
 				out_reg_addr(7 downto 0) <= spi_rx;
+				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= out_reg_addr(7 downto 0);
 				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= REG_BYTESHIGH;
@@ -384,12 +426,21 @@ BEGIN
 			WHEN REG_BYTESHIGH =>
 				out_reg_length(15 downto 8) <= spi_rx;
 				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= out_reg_length(15 downto 8);
+				
 				state <= WAIT_READ_BYTE;
 				output_rdy_state <= REG_BYTESLOW;
 			
 			-- Reads the low byte of the length
 			WHEN REG_BYTESLOW =>
-				out_reg_length(15 downto 8) <= spi_rx;
+				out_reg_length(7 downto 0) <= spi_rx;
+--				out_reg_length(7 downto 0) <= "00010000";
+				
+				-- DEBUG: write out to SPI
+--				spi_tx_valid <= '1';
+--				spi_tx <= out_reg_length(7 downto 0);
 				
 				-- write the register next cycle
 				state <= REG_WRITE;

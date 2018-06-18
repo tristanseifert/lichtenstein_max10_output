@@ -337,201 +337,202 @@ END PROCESS;
 
 
 -- test FIFO filler (writes a 16-byte pattern, then waits)
-PROCESS (clk, nreset)
-BEGIN
-	IF nreset = '0' THEN
-		-- reset kerjigger
-		fifo_filler_state <= IDLE;
-		
-		-- reset counters
-		test_bytes_written <= (OTHERS => '0');
-		test_counter <= (OTHERS => '0');
-		
-		-- reset error flag
-		read_error <= '0';
-	ELSIF (clk = '1' and clk'event) THEN
-		CASE fifo_filler_state IS
-			-- idle: wait for the FIFO to not be full
-			WHEN IDLE =>			
-				-- is the FIFO full?
-				IF fifo_full = '0' THEN
-					-- if not, write data
-					fifo_filler_state <= ASSERT_RDREQ;
-				ELSE
-					-- wait for FIFO to not be full anymore.
-					fifo_filler_state <= IDLE;
-				END IF;
-				
-			-- assert the write request signal and write data
-			WHEN ASSERT_RDREQ =>
-				-- assert write request
-				fifo_wrreq <= '1';
-				
-				-- write the appropriate data from our constant LUT
-				fifo_din <= test_data(to_integer(unsigned(test_index(1 downto 0)) & unsigned(test_bytes_written(1 downto 0))));
-				
-				-- go to the next state
-				fifo_filler_state <= WAIT_READ_SLOT;
-				
-			-- de-assert write and wait to write more
-			WHEN WAIT_READ_SLOT =>
-				fifo_wrreq <= '0';
-				
-				-- increment counter of bytes written into the FIFO
-				test_bytes_written <= test_bytes_written + 1;
-				
-				-- did we write 16 bytes?
-				IF and_reduce(test_bytes_written(5 downto 0)) = '1' THEN
-					-- if so, start the wait timer
-					test_counter <= (OTHERS => '0');
-					fifo_filler_state <= WAIT_READ_VALID;				
-				ELSE
-					-- if not, write more data
-					fifo_filler_state <= IDLE;
-				END IF;
-				
-			-- wait to let the FIFO drain
-			WHEN WAIT_READ_VALID=>			
-				-- clear number of bytes written
-				test_bytes_written <= (OTHERS => '0');
-			
-				-- increment counter
-				test_counter <= test_counter + 1;
-				
-				-- did the timer expire?
-				IF and_reduce(test_counter) = '1' THEN
-					-- increment test pattern index timer
-					test_index <= test_index + 1;
-				
-					-- if so, wait for the FIFO to be empty
-					fifo_filler_state <= IDLE;
-				ELSE
-					-- wait some more lol
-					fifo_filler_state <= WAIT_READ_VALID;
-				END IF;
-				
-			-- catch-all (shouldn't happen)
-			WHEN OTHERS =>
-				fifo_filler_state <= IDLE;
-		END CASE;
-	END IF;
-END PROCESS;
+--PROCESS (clk, nreset)
+--BEGIN
+--	IF nreset = '0' THEN
+--		-- reset kerjigger
+--		fifo_filler_state <= IDLE;
+--		
+--		-- reset counters
+--		test_bytes_written <= (OTHERS => '0');
+--		test_counter <= (OTHERS => '0');
+--		
+--		-- reset error flag
+--		read_error <= '0';
+--	ELSIF (clk = '1' and clk'event) THEN
+--		CASE fifo_filler_state IS
+--			-- idle: wait for the FIFO to not be full
+--			WHEN IDLE =>			
+--				-- is the FIFO full?
+--				IF fifo_full = '0' THEN
+--					-- if not, write data
+--					fifo_filler_state <= ASSERT_RDREQ;
+--				ELSE
+--					-- wait for FIFO to not be full anymore.
+--					fifo_filler_state <= IDLE;
+--				END IF;
+--				
+--			-- assert the write request signal and write data
+--			WHEN ASSERT_RDREQ =>
+--				-- assert write request
+--				fifo_wrreq <= '1';
+--				
+--				-- write the appropriate data from our constant LUT
+--				fifo_din <= test_data(to_integer(unsigned(test_index(1 downto 0)) & unsigned(test_bytes_written(1 downto 0))));
+--				
+--				-- go to the next state
+--				fifo_filler_state <= WAIT_READ_SLOT;
+--				
+--			-- de-assert write and wait to write more
+--			WHEN WAIT_READ_SLOT =>
+--				fifo_wrreq <= '0';
+--				
+--				-- increment counter of bytes written into the FIFO
+--				test_bytes_written <= test_bytes_written + 1;
+--				
+--				-- did we write 16 bytes?
+--				IF and_reduce(test_bytes_written(5 downto 0)) = '1' THEN
+--					-- if so, start the wait timer
+--					test_counter <= (OTHERS => '0');
+--					fifo_filler_state <= WAIT_READ_VALID;				
+--				ELSE
+--					-- if not, write more data
+--					fifo_filler_state <= IDLE;
+--				END IF;
+--				
+--			-- wait to let the FIFO drain
+--			WHEN WAIT_READ_VALID=>			
+--				-- clear number of bytes written
+--				test_bytes_written <= (OTHERS => '0');
+--			
+--				-- increment counter
+--				test_counter <= test_counter + 1;
+--				
+--				-- did the timer expire?
+--				IF and_reduce(test_counter) = '1' THEN
+--					-- increment test pattern index timer
+--					test_index <= test_index + 1;
+--				
+--					-- if so, wait for the FIFO to be empty
+--					fifo_filler_state <= IDLE;
+--				ELSE
+--					-- wait some more lol
+--					fifo_filler_state <= WAIT_READ_VALID;
+--				END IF;
+--				
+--			-- catch-all (shouldn't happen)
+--			WHEN OTHERS =>
+--				fifo_filler_state <= IDLE;
+--		END CASE;
+--	END IF;
+--END PROCESS;
 
 
 
 -- FIFO filling state machine
---PROCESS (clk, nreset)
---BEGIN
---	-- Is reset asserted?
---	IF nreset = '0' THEN
---			-- clear registers and counters
---			read_addr <= (OTHERS => '0');
---			read_bytes <= (OTHERS => '0');
---			
---			addr_counter <= read_addr;
---			bytes_counter <= read_bytes;
---			
---			-- clear FIFO
---			fifo_clear <= '1';
---			
---			-- reset state machine
---			fifo_filler_state <= IDLE;
---	ELSIF (clk = '1' and clk'event) THEN
---		CASE fifo_filler_state IS
---			-- Idle state, wait for the register data to be latched
---			WHEN IDLE =>
---				-- de-assert FIFO clear
---				fifo_clear <= '0';
---			
---				-- is the latch strobe high?
---				IF reg_latch = '1' THEN
---					-- latch the byte length and address
---					read_addr <= reg_addr;
---					bytes_counter <= reg_length;
---					
---					-- reset counters
---					addr_counter <= read_addr;
---					bytes_counter <= read_bytes;
---					
---					-- begin reading
---					fifo_filler_state <= WAIT_FIFO_NOT_FULL;
---				ELSE
---					-- wait some more
---					fifo_filler_state <= IDLE;
---				END IF;
---				
---				-- Wait for the FIFO to not be full
---				WHEN WAIT_FIFO_NOT_FULL =>
---					IF fifo_full = '0' THEN
---						fifo_filler_state <= ASSERT_RDREQ;
---					ELSE
---						-- wait some more
---						fifo_filler_state <= WAIT_FIFO_NOT_FULL;
---					END IF;
---				
---				-- Assert the read request signal
---				WHEN ASSERT_RDREQ =>
---					rd_desired <= '1';
---					
---					fifo_filler_state <= WAIT_READ_SLOT;
---				-- Wait for a read slot
---				WHEN WAIT_READ_SLOT =>
---					-- is the read ack asserted?
---					IF rd_allowed = '1' THEN
---						-- if so, assert the read request and send address
---						rd_addr <= addr_counter;
---						rd_req <= '1';
---						
---						-- wait for data to be valid
---						fifo_filler_state <= WAIT_READ_VALID;
---					ELSE
---						-- if not, wait more
---						fifo_filler_state <= WAIT_READ_SLOT;
---					END IF;
---				-- wait for the data to be valid
---				WHEN WAIT_READ_VALID =>
---					-- is the read data valid?
---					IF rd_valid = '1' THEN
---						-- if so, read the data
---						fifo_filler_state <= DO_READ;
---					ELSE
---						-- if not, wait for it to be valid
---						fifo_filler_state <= WAIT_READ_VALID;
---					END IF;
---					
---				-- push the read data into the FIFO
---				WHEN DO_READ =>
---					-- stop driving address bus
---					rd_addr <= (OTHERS => 'Z');
---					rd_req <= 'Z';
---					
---					-- disable read flag
---					rd_desired <= '0';
---					
---					-- assert the FIFO write request
---					fifo_wrreq <= '1';
---					
---					-- manage the counters
---					fifo_filler_state <= HANDLE_COUNTERS;
---					
---				-- increment address, decrement length
---				WHEN HANDLE_COUNTERS =>
---					-- deassert the FIFO write request
---					fifo_wrreq <= '0';
---					
---					-- increment address, decrement bytes
---					addr_counter <= addr_counter + 1;
---					bytes_counter <= bytes_counter - 1;
---					
---					-- if the bytes counter is zero, stop reading
---					IF bytes_counter = (bytes_counter'range => '0') THEN
---						fifo_filler_state <= IDLE;
---					ELSE
---						-- otherwise, read more data into the FIFO
---						fifo_filler_state <= WAIT_FIFO_NOT_FULL;
---					END IF;					
---		END CASE;
---	END IF;
---END PROCESS;
+PROCESS (clk, nreset)
+BEGIN
+	-- Is reset asserted?
+	IF nreset = '0' THEN
+			-- clear registers and counters
+			read_addr <= (OTHERS => '0');
+			read_bytes <= (OTHERS => '0');
+			
+			addr_counter <= read_addr;
+			bytes_counter <= read_bytes;
+			
+			-- clear FIFO
+			fifo_clear <= '1';
+			
+			-- reset state machine
+			fifo_filler_state <= IDLE;
+	ELSIF (clk = '1' and clk'event) THEN
+		CASE fifo_filler_state IS
+			-- Idle state, wait for the register data to be latched
+			WHEN IDLE =>
+				-- de-assert FIFO clear
+				fifo_clear <= '0';
+			
+				-- is the latch strobe high?
+				IF reg_latch = '1' THEN
+					-- latch the byte length and address
+					read_addr <= reg_addr;
+					read_bytes <= reg_length;
+					
+					-- reset counters
+					addr_counter <= read_addr;
+					bytes_counter <= read_bytes;
+					
+					-- begin copying pixel data from memory to FIFO
+					fifo_filler_state <= WAIT_FIFO_NOT_FULL;
+				ELSE
+					-- wait for the output registers to be latched
+					fifo_filler_state <= IDLE;
+				END IF;
+				
+				-- Wait for the FIFO to not be full
+				WHEN WAIT_FIFO_NOT_FULL =>
+					IF fifo_full = '0' THEN
+						fifo_filler_state <= ASSERT_RDREQ;
+					ELSE
+						-- wait some more
+						fifo_filler_state <= WAIT_FIFO_NOT_FULL;
+					END IF;
+				
+				-- Assert the read request signal
+				WHEN ASSERT_RDREQ =>
+					rd_desired <= '1';
+					
+					fifo_filler_state <= WAIT_READ_SLOT;
+				-- Wait for a read slot
+				WHEN WAIT_READ_SLOT =>
+					-- is the read ack asserted?
+					IF rd_allowed = '1' THEN
+						-- if so, assert the read request and send address
+						rd_addr <= addr_counter;
+						rd_req <= '1';
+						
+						-- wait for data to be valid
+						fifo_filler_state <= WAIT_READ_VALID;
+					ELSE
+						-- if not, wait more
+						fifo_filler_state <= WAIT_READ_SLOT;
+					END IF;
+				-- wait for the data to be valid
+				WHEN WAIT_READ_VALID =>
+					-- is the read data valid?
+					IF rd_valid = '1' THEN
+						-- if so, read the data
+						fifo_filler_state <= DO_READ;
+					ELSE
+						-- if not, wait for it to be valid
+						fifo_filler_state <= WAIT_READ_VALID;
+					END IF;
+					
+				-- push the read data into the FIFO
+				WHEN DO_READ =>
+					-- stop driving address bus
+					rd_addr <= (OTHERS => 'Z');
+					rd_req <= 'Z';
+					
+					-- disable read flag
+					rd_desired <= '0';
+					
+					-- assert the FIFO write request and latch read data bus
+					fifo_wrreq <= '1';
+					fifo_din <= rd_data;
+					
+					-- manage the counters
+					fifo_filler_state <= HANDLE_COUNTERS;
+					
+				-- increment address, decrement length
+				WHEN HANDLE_COUNTERS =>
+					-- deassert the FIFO write request
+					fifo_wrreq <= '0';
+					
+					-- increment address, decrement bytes
+					addr_counter <= addr_counter + 1;
+					bytes_counter <= bytes_counter - 1;
+					
+					-- if the bytes counter is zero, stop reading
+					IF bytes_counter = (bytes_counter'range => '0') THEN
+						fifo_filler_state <= IDLE;
+					ELSE
+						-- otherwise, read more data into the FIFO
+						fifo_filler_state <= WAIT_FIFO_NOT_FULL;
+					END IF;					
+		END CASE;
+	END IF;
+END PROCESS;
 
 END SYN;

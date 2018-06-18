@@ -279,7 +279,7 @@ BEGIN
 	IF rising_edge (pwmclk) THEN
 --		status(1) <= spi_mosi;
 --		status(0) <= NOT(spi_cs); -- 1 when chip select is 0
---		status(0) <= cmd_error; -- timeout (or other error)
+		status(0) <= cmd_error; -- timeout (or other error)
 		
 --		status(1) <= cmd_status(0); -- processing cmd
 --		status(2) <= cmd_status(1); -- idle
